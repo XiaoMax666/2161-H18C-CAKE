@@ -49,7 +49,7 @@ class DeviceAAdapter(BaseAdapter):
                 "Recording_info.csv must contain 'width' and 'height' rows."
             )
 
-        # 检查 gaze 数值列
+        # validate gaze attributes
         for col in ["Time_s", "FPOGX", "FPOGY", "FPOGV"]:
             try:
                 pd.to_numeric(gaze[col])
@@ -58,7 +58,7 @@ class DeviceAAdapter(BaseAdapter):
                     "Column '{}' in GP3HD_data.csv contains non-numeric values.".format(col)
                 ) from e
 
-        # 检查 marker 时间
+        # Validate marker timestamp
         try:
             start = pd.to_numeric(markers.iloc[:, 0])
             end = pd.to_numeric(markers.iloc[:, 1])
@@ -90,7 +90,6 @@ class DeviceAAdapter(BaseAdapter):
         gaze = self.raw_data["gaze"].copy()
         markers = self.raw_data["markers"].copy()
 
-        # 从 key-value rows 里提取屏幕分辨率
         try:
             screen_width = float(self._get_info_value("width"))
             screen_height = float(self._get_info_value("height"))
@@ -99,7 +98,6 @@ class DeviceAAdapter(BaseAdapter):
                 "Failed to parse width/height from Recording_info.csv."
             ) from e
 
-        # 转换为数字
         gaze["Time_s"] = pd.to_numeric(gaze["Time_s"])
         gaze["FPOGX"] = pd.to_numeric(gaze["FPOGX"])
         gaze["FPOGY"] = pd.to_numeric(gaze["FPOGY"])
@@ -108,30 +106,30 @@ class DeviceAAdapter(BaseAdapter):
         markers.iloc[:, 0] = pd.to_numeric(markers.iloc[:, 0])
         markers.iloc[:, 1] = pd.to_numeric(markers.iloc[:, 1])
 
-        gaze_start = gaze["Time_s"].min()
+        # Initialize the marker starting timestamp as 0
+        time_zero = markers.iloc[:, 0].min()
 
-        # 统一输出 schema
         gaze_df = pd.DataFrame({
-            "timestamp": (gaze["Time_s"] - gaze_start).round(6),
+            "timestamp": (gaze["Time_s"] - time_zero).round(6),
             "gaze_x_norm": gaze["FPOGX"],
             "gaze_y_norm": gaze["FPOGY"],
             "valid": gaze["FPOGV"],
             "device": "DeviceA",
         })
 
-        # 转成屏幕像素坐标
         gaze_df["gaze_x_px"] = (gaze_df["gaze_x_norm"] * screen_width).round(2)
         gaze_df["gaze_y_px"] = (gaze_df["gaze_y_norm"] * screen_height).round(2)
 
         marker_df = pd.DataFrame({
-            "start_time": (markers.iloc[:, 0] - gaze_start).round(6),
-            "end_time": (markers.iloc[:, 1] - gaze_start).round(6),
+            "start_time": (markers.iloc[:, 0] - time_zero).round(6),
+            "end_time": (markers.iloc[:, 1] - time_zero).round(6),
         })
 
         metadata_df = pd.DataFrame({
             "screen_width": [screen_width],
             "screen_height": [screen_height],
             "device": ["DeviceA"],
+            "time_zero_source": ["first_marker_start"],
         })
 
         return {
